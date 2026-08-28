@@ -1,6 +1,7 @@
 import type { AssetFile } from "@/lib/db/schema";
 import { generateVideoSubmit, pollGeneration } from "@/lib/imagine-mcp/client";
 import { uploadBuffer, BUCKETS } from "@/lib/storage";
+import { readMp4Meta } from "../mp4-meta";
 import type { GenerationContext } from "../context";
 import { patchAssetContent } from "../context";
 import { TEMPLATE_KEYS } from "./templates";
@@ -57,8 +58,13 @@ export async function renderReelVideo(ctx: GenerationContext): Promise<{ file: A
   const path = `${ctx.project.id}/${ctx.asset.id}/reel.mp4`;
   await uploadBuffer(BUCKETS.generatedAssets, path, buf, "video/mp4");
 
+  // Measure, don't assume: a 9:16 seedance-2.0 render came back 496x864 / 6.0s,
+  // not the 1080x1920 / 15s that was hardcoded here. These values size the
+  // video in the library and canvas, so a wrong guess misreports the asset.
+  const meta = readMp4Meta(buf);
+
   return {
-    file: { path, mime: "video/mp4", width: 1080, height: 1920, durationS: 15, label: "Reel" },
+    file: { path, mime: "video/mp4", ...meta, label: "Reel" },
     template: templateKey,
   };
 }
