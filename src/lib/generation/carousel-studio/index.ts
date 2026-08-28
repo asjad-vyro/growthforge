@@ -1,6 +1,7 @@
 import type { AssetFile } from "@/lib/db/schema";
 import { generateImage } from "@/lib/imagine-mcp/client";
 import { uploadBuffer, BUCKETS } from "@/lib/storage";
+import { readPngSize } from "../png-meta";
 import type { GenerationContext } from "../context";
 import { patchAssetContent } from "../context";
 import { CAROUSEL_CONCEPTS, makeStyleLock, slidePrompt, type CarouselConcept, type Mode } from "./prompts";
@@ -57,7 +58,10 @@ export async function renderCarouselSlides(ctx: GenerationContext): Promise<{ fi
     const buf = Buffer.from(await res.arrayBuffer());
     const path = `${ctx.project.id}/${ctx.asset.id}/slide-${String(k).padStart(2, "0")}.png`;
     await uploadBuffer(BUCKETS.generatedAssets, path, buf, "image/png");
-    files.push({ path, mime: "image/png", width: 1024, height: 1280, label: `Slide ${k}` });
+    // The model does not always honour the 4:5 request — slides have come back
+    // 2048x2048 — and this size is what lays the slide out, so measure it.
+    const size = readPngSize(buf) ?? { width: 1024, height: 1280 };
+    files.push({ path, mime: "image/png", ...size, label: `Slide ${k}` });
     await patchAssetContent(ctx.asset.id, { carousel: { concept, styleLock, slideFiles: files } });
   }
   return { files, concept };
