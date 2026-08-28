@@ -77,7 +77,11 @@ export async function finishAsset(
     .set({
       status: "ready",
       content: sql`coalesce(content, '{}'::jsonb) || ${JSON.stringify(contentPatch)}::jsonb`,
-      files: sql`coalesce(files, '[]'::jsonb) || ${JSON.stringify(files)}::jsonb`,
+      // Replace, don't concatenate: `jsonb || jsonb` appends for arrays, so a
+      // second run of asset.generate (routine — the duration limit kills and
+      // retries generation, which is why it checkpoints) duplicated every file.
+      // Callers always pass the complete set, resumed from the checkpoint.
+      files: sql`${JSON.stringify(files)}::jsonb`,
       updatedAt: new Date(),
     })
     .where(eq(schema.generatedAssets.id, assetId))
