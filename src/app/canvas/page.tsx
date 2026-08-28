@@ -4,6 +4,7 @@ import { db, schema } from "@/lib/db/client";
 import { currentProject } from "@/lib/auth";
 import { signedUrl, BUCKETS } from "@/lib/storage";
 import { CanvasBoard, type CanvasAsset } from "@/components/canvas-board";
+import type { BrandIdentity } from "@/components/post-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,20 @@ function describe(type: string, content: Record<string, unknown> | null) {
             : "",
       )
       .filter(Boolean);
+    // Same variants with tweets kept separate, so a thread previews as a thread.
+    const grouped = (variants ?? [])
+      .map((v) =>
+        typeof v === "string"
+          ? [v]
+          : Array.isArray((v as { tweets?: unknown[] })?.tweets)
+            ? ((v as { tweets: unknown[] }).tweets.filter((x) => typeof x === "string") as string[])
+            : [],
+      )
+      .filter((g) => g.length > 0);
     return {
       body,
       texts,
+      variants: grouped,
       meta: body ? `${body.length} ch` : undefined,
     };
   }
@@ -49,6 +61,11 @@ export default async function CanvasPage() {
   const { project } = await currentProject();
   if (!project) redirect("/onboarding");
 
+  const [brandKit] = await db
+    .select()
+    .from(schema.brandKits)
+    .where(eq(schema.brandKits.projectId, project.id));
+
   const rows = await db
     .select()
     .from(schema.generatedAssets)
@@ -58,12 +75,14 @@ export default async function CanvasPage() {
 
   const assets: CanvasAsset[] = await Promise.all(
     rows.map(async (r) => {
-      const { headline, body, meta } = describe(r.type, r.content);
+      const { headline, body, texts, variants, meta } = describe(r.type, r.content);
       const files = await Promise.all(
         (r.files ?? []).map(async (f) => ({
           path: f.path,
           mime: f.mime,
           label: f.label,
+          width: f.width,
+          height: f.height,
           signedUrl:
             f.mime.startsWith("image/") || f.mime.startsWith("video/")
               ? await signedUrl(BUCKETS.generatedAssets, f.path, 3600).catch(() => undefined)
@@ -77,11 +96,30 @@ export default async function CanvasPage() {
         createdAt: r.createdAt.toISOString(),
         headline,
         body,
+        texts,
+        variants,
+        error: r.error,
         meta: meta ?? (files.length > 1 ? `1 / ${files.length}` : undefined),
         files,
       };
     }),
   );
 
-  return <CanvasBoard brand={project.name} projectId={project.id} assets={assets} />;
+  const identity: BrandIdentity = {
+    name: project.name,
+    handle: project.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "brand",
+    tagline: project.usp ?? project.productDescription ?? undefined,
+    avatarUrl: brandKit?.logoPath
+      ? await signedUrl(BUCKETS.brandAssets, brandKit.logoPath, 3600).catch(() => undefined)
+      : undefined,
+  };
+
+  return (
+    <CanvasBoard
+      brand={project.name}
+      identity={identity}
+      projectId={project.id}
+      assets={assets}
+    />
+  );
 }

@@ -3,12 +3,20 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GhostButton, GlintButton, Logo, TextArea, TextInput } from "@/components/bm";
+import { PostPreview, type BrandIdentity } from "@/components/post-preview";
 
 /* ------------------------------------------------------------------ */
 /* Types — shaped by the server component from generated_assets.       */
 /* ------------------------------------------------------------------ */
 
-export type CanvasFile = { path: string; mime: string; label?: string; signedUrl?: string };
+export type CanvasFile = {
+  path: string;
+  mime: string;
+  label?: string;
+  signedUrl?: string;
+  width?: number;
+  height?: number;
+};
 export type CanvasAsset = {
   id: string;
   type: string; // tweet | thread | carousel | image_ad | reel
@@ -18,6 +26,8 @@ export type CanvasAsset = {
   body?: string;
   /** Full text variants (each variant's tweets joined) for the expanded view. */
   texts?: string[];
+  /** Same variants with tweets kept separate, so a thread previews as a thread. */
+  variants?: string[][];
   error?: string | null;
   meta?: string;
   files: CanvasFile[];
@@ -59,7 +69,8 @@ const CHANNELS: {
   {
     name: "LinkedIn",
     kinds: "Posts, documents",
-    types: [],
+    // Same generated copy ships to X and LinkedIn; only the preview skin differs.
+    types: ["tweet", "thread"],
     iconBg: "linear-gradient(140deg, #1B7BC4, #0A4E86)",
     dot: "#0871E7",
     mark: (
@@ -129,16 +140,21 @@ function Mark({ children }: { children: React.ReactNode }) {
 
 export function CanvasBoard({
   brand,
+  identity,
   projectId,
   assets,
 }: {
   brand: string;
+  identity: BrandIdentity;
   projectId: string;
   assets: CanvasAsset[];
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [compose, setCompose] = useState<string | null>(null);
+  // Two views of one asset: `post` previews it in the platform's own chrome,
+  // `preview` is the full working view (all variants, copy, downloads).
+  const [post, setPost] = useState<{ asset: CanvasAsset; channel: string } | null>(null);
   const [preview, setPreview] = useState<CanvasAsset | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -406,8 +422,9 @@ export function CanvasBoard({
                   <AssetCardTile
                     key={a.id}
                     asset={a}
+                    channel={ch.name}
                     onRegenerate={() => regenerate(a.id)}
-                    onExpand={() => setPreview(a)}
+                    onExpand={() => setPost({ asset: a, channel: ch.name })}
                   />
                 ))}
                 <NewTile
@@ -429,6 +446,19 @@ export function CanvasBoard({
         />
       )}
 
+      {post && (
+        <PostPreview
+          asset={post.asset}
+          channel={post.channel}
+          brand={identity}
+          onClose={() => setPost(null)}
+          onDetails={() => {
+            setPreview(post.asset);
+            setPost(null);
+          }}
+        />
+      )}
+
       {preview && (
         <PreviewModal
           asset={preview}
@@ -447,10 +477,12 @@ export function CanvasBoard({
 
 function AssetCardTile({
   asset,
+  channel,
   onRegenerate,
   onExpand,
 }: {
   asset: CanvasAsset;
+  channel: string;
   onRegenerate: () => void;
   onExpand: () => void;
 }) {
@@ -467,6 +499,17 @@ function AssetCardTile({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onExpand}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onExpand();
+        }
+      }}
+      title="Preview as a real post"
+      data-channel={channel}
+      data-asset-type={asset.type}
       className="relative h-[208px] cursor-pointer overflow-hidden rounded-[14px] bg-white transition-shadow"
       style={{
         border: `1px solid ${hover ? "rgba(8,113,231,0.45)" : "rgba(0,0,0,0.08)"}`,
