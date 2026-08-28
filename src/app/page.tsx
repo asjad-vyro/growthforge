@@ -68,8 +68,6 @@ function TypingMessages() {
 /* Navbar                                                              */
 /* ------------------------------------------------------------------ */
 
-const LINKS = ["Philosophy", "Trust", "Access", "Tribe"];
-
 function Navbar({ onLinkUp }: { onLinkUp: () => void }) {
   return (
     <header className="pointer-events-none fixed left-1/2 top-6 z-50 w-[95%] max-w-5xl -translate-x-1/2">
@@ -78,18 +76,6 @@ function Navbar({ onLinkUp }: { onLinkUp: () => void }) {
         style={{ border: "1px solid rgba(0,0,0,0.10)", background: "rgba(243,244,237,0.55)" }}
       >
         <Logo size={24} markSize={22} />
-
-        <div className="hidden items-center gap-10 md:flex">
-          {LINKS.map((link) => (
-            <a
-              key={link}
-              href={`#${link.toLowerCase()}`}
-              className="text-[14px] text-[#1a1a1a] opacity-75 transition-opacity duration-200 hover:opacity-100"
-            >
-              {link}
-            </a>
-          ))}
-        </div>
 
         <GlintButton onClick={onLinkUp} padding="10px 20px" lift={false}>
           Link up
