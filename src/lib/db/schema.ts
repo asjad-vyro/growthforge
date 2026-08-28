@@ -32,8 +32,16 @@ export const projects = pgTable("projects", {
   icp: jsonb("icp").$type<{
     persona?: string;
     pains?: string[];
+    goal?: string;
     demographics?: string;
     wateringHoles?: string[];
+    extras?: {
+      offers?: string;
+      pricing?: string;
+      testimonials?: string;
+      goals?: string[];
+      socials?: Record<string, string>;
+    };
   }>(),
   usp: text("usp"),
   nicheKeywords: text("niche_keywords").array(),

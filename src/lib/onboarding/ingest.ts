@@ -21,9 +21,27 @@ export const OnboardingPrefillSchema = z.object({
   icp: z.object({
     persona: z.string(),
     pains: z.array(z.string()),
+    goal: z.string(),
     demographics: z.string(),
     watering_holes: z.array(z.string()),
   }),
+  offers: z.string(),
+  pricing: z.string(),
+  testimonials: z.string(),
+  socials: z.object({
+    twitter: z.string(),
+    instagram: z.string(),
+    youtube_or_other: z.string(),
+  }),
+  suggested_goals: z.array(
+    z.enum([
+      "Increase brand awareness",
+      "Grow community",
+      "Drive more leads",
+      "Increase retention",
+      "Other",
+    ]),
+  ),
 });
 export type OnboardingPrefill = z.infer<typeof OnboardingPrefillSchema> & {
   screenshotPath?: string;
@@ -50,7 +68,16 @@ export async function ingestLandingPage(
       text: [
         `Landing page URL: ${url}`,
         textContent ? `PAGE CONTENT (condensed HTML/text):\n${textContent}` : "(page fetch failed — rely on the screenshot)",
-        "Extract the onboarding prefill. colors must be hex like #1A2B3C — infer the actual site palette (from the screenshot when present). logo_url: absolute URL of the site logo if identifiable from the HTML (og:image / link rel icon / img with 'logo'), else empty string. niche_keywords: 4-6 short search terms a growth marketer would use to find this product's market conversation on social (no hashtag symbol). watering_holes: where this ICP hangs out online.",
+        [
+          "Extract the onboarding prefill. colors must be hex like #1A2B3C — infer the actual site palette (from the screenshot when present).",
+          "logo_url: absolute URL of the site logo if identifiable from the HTML (og:image / link rel icon / img with 'logo'), else empty string.",
+          "niche_keywords: 4-6 short search terms a growth marketer would use to find this product's market conversation on social (no hashtag symbol).",
+          "watering_holes: where this ICP hangs out online. icp.goal: what success looks like for this customer, one sentence.",
+          "offers: current offers/plans/promos visible on the page (e.g. free trial, discounts), one line, else empty. pricing: pricing summary from the page (tiers/amounts), one line, else empty.",
+          "testimonials: 1-3 short verbatim quotes of reviews/testimonials/social proof found on the page joined with ' | ', else empty.",
+          "socials: absolute URLs of the brand's own social profiles found in the page links (twitter = twitter.com/x.com profile, instagram = instagram.com profile, youtube_or_other = youtube/tiktok/discord/linkedin — pick the most prominent). Empty string when not present — NEVER invent handles.",
+          "suggested_goals: 1-2 of the allowed goal labels that best fit what this business appears to need right now.",
+        ].join(" "),
       ].join("\n\n"),
     },
   ];
@@ -122,7 +149,14 @@ function condenseHtml(html: string): string {
     .map((m) => m[0])
     .slice(0, 10)
     .join("\n");
-  return `TITLE: ${title}\nMETA:\n${metas}\nLOGO/ICON TAGS:\n${logoHints}\nTEXT:\n${body}`;
+  const socialLinks = [
+    ...new Set(
+      [...html.matchAll(/href="(https?:\/\/[^"]*(?:twitter\.com|x\.com|instagram\.com|youtube\.com|tiktok\.com|linkedin\.com|discord\.(?:gg|com))[^"]*)"/gi)]
+        .map((m) => m[1])
+        .slice(0, 12),
+    ),
+  ].join("\n");
+  return `TITLE: ${title}\nMETA:\n${metas}\nLOGO/ICON TAGS:\n${logoHints}\nSOCIAL/COMMUNITY LINKS:\n${socialLinks}\nTEXT:\n${body}`;
 }
 
 /** Mirror a discovered logo URL into brand-assets. */

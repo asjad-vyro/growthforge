@@ -78,7 +78,12 @@ type Prefill = {
   colors: { primary: string; secondary: string; accent: string; background: string; text: string };
   logo_url: string;
   niche_keywords: string[];
-  icp: { persona: string; pains: string[]; demographics: string; watering_holes: string[] };
+  icp: { persona: string; pains: string[]; goal: string; demographics: string; watering_holes: string[] };
+  offers: string;
+  pricing: string;
+  testimonials: string;
+  socials: { twitter: string; instagram: string; youtube_or_other: string };
+  suggested_goals: string[];
   screenshotPath?: string;
 };
 
@@ -241,7 +246,27 @@ function Wizard() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "extraction failed");
-        setPrefill(json.prefill as Prefill);
+        const p = json.prefill as Prefill;
+        setPrefill(p);
+        // Seed every later step from the extraction — all of it stays editable.
+        if (p.icp?.persona) setIcpWho(p.icp.persona);
+        if (p.icp?.pains?.length) setIcpPain(p.icp.pains.join(", "));
+        if (p.icp?.goal) setIcpGoal(p.icp.goal);
+        if (p.suggested_goals?.length) {
+          const idxs = p.suggested_goals
+            .map((label) => GOALS.indexOf(label))
+            .filter((i) => i >= 0)
+            .slice(0, 2);
+          if (idxs.length) setGoals(idxs);
+        }
+        if (p.offers) setOffers(p.offers);
+        if (p.pricing) setPricing(p.pricing);
+        if (p.testimonials) setReviews(p.testimonials);
+        setSocials((s) => ({
+          "Twitter / X": p.socials?.twitter || s["Twitter / X"],
+          Instagram: p.socials?.instagram || s.Instagram,
+          "YouTube / Other": p.socials?.youtube_or_other || s["YouTube / Other"],
+        }));
         setError(null);
       } catch (err) {
         // Extraction is best-effort — the user can still fill everything by hand.
@@ -272,8 +297,16 @@ function Wizard() {
         icp: {
           persona: icpWho || prefill?.icp.persona || "General audience",
           pains: pains.length ? pains : ["Not specified"],
+          goal: icpGoal || prefill?.icp.goal || "",
           demographics: prefill?.icp.demographics ?? "",
           wateringHoles: prefill?.icp.watering_holes ?? [],
+          extras: {
+            offers: offers || prefill?.offers || "",
+            pricing: pricing || prefill?.pricing || "",
+            testimonials: reviews || prefill?.testimonials || "",
+            goals: [...goals.map((i) => GOALS[i]), goalsMore].filter(Boolean),
+            socials: Object.fromEntries(Object.entries(socials).filter(([, v]) => v)),
+          },
         },
         nicheKeywords: keywords.length ? keywords : [domain.split(".")[0] || "product"],
         brandKit: {
@@ -298,7 +331,8 @@ function Wizard() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "could not create project");
-        const id = json.project?.id ?? json.id;
+        const id = json.projectId ?? json.project?.id ?? json.id;
+        if (!id) throw new Error("could not create project (no id returned)");
         setProjectId(id);
 
         // Start the pipeline. A 409 just means a recent run already exists.

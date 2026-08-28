@@ -13,8 +13,18 @@ const CreateProjectSchema = z.object({
   icp: z.object({
     persona: z.string(),
     pains: z.array(z.string()),
+    goal: z.string().optional(),
     demographics: z.string().optional(),
     wateringHoles: z.array(z.string()).optional(),
+    extras: z
+      .object({
+        offers: z.string().optional(),
+        pricing: z.string().optional(),
+        testimonials: z.string().optional(),
+        goals: z.array(z.string()).optional(),
+        socials: z.record(z.string(), z.string()).optional(),
+      })
+      .optional(),
   }),
   nicheKeywords: z.array(z.string().min(1)).min(1).max(8),
   brandKit: z.object({
