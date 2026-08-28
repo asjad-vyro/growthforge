@@ -1,4 +1,4 @@
-import { type NormalizedPost, num, str, when } from "./types";
+import { type NormalizedPost, num, count, str, when } from "./types";
 import { extractHashtags } from "./instagram";
 
 // apidojo/tweet-scraper (Tweet Scraper V2) item
@@ -30,11 +30,11 @@ export function normalizeX(item: Record<string, unknown>): NormalizedPost | null
     text,
     media,
     metrics: {
-      likes: num(item.likeCount),
-      comments: num(item.replyCount),
-      shares: num(item.retweetCount),
-      reposts: num(item.quoteCount),
-      views: num(item.viewCount),
+      likes: count(item.likeCount),
+      comments: count(item.replyCount),
+      shares: count(item.retweetCount),
+      reposts: count(item.quoteCount),
+      views: count(item.viewCount),
     },
     hashtags: extractHashtags(text),
     postedAt: when(item.createdAt),

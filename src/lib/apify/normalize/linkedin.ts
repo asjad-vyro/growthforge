@@ -1,4 +1,4 @@
-import { type NormalizedPost, num, str, when } from "./types";
+import { type NormalizedPost, num, count, str, when } from "./types";
 import { extractHashtags } from "./instagram";
 
 // harvestapi/linkedin-post-search item (no-cookie, public data)
@@ -27,9 +27,9 @@ export function normalizeLinkedIn(item: Record<string, unknown>): NormalizedPost
     text,
     media,
     metrics: {
-      likes: num(engagement.likes) ?? num(item.likesCount) ?? num(item.numLikes),
-      comments: num(engagement.comments) ?? num(item.commentsCount) ?? num(item.numComments),
-      shares: num(engagement.shares) ?? num(item.sharesCount) ?? num(item.numShares),
+      likes: count(engagement.likes) ?? count(item.likesCount) ?? count(item.numLikes),
+      comments: count(engagement.comments) ?? count(item.commentsCount) ?? count(item.numComments),
+      shares: count(engagement.shares) ?? count(item.sharesCount) ?? count(item.numShares),
     },
     hashtags: extractHashtags(text),
     postedAt: when(item.postedAt ?? item.date ?? item.publishedAt),

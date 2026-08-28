@@ -29,3 +29,14 @@ export const when = (v: unknown): Date | undefined => {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? undefined : d;
 };
+
+/**
+ * Metric counts. Platforms use a negative sentinel for "hidden", not a real
+ * count — Instagram returns `likesCount: -1` when the poster hides likes.
+ * Left as-is, `-1` cancels the `1 +` in the engagement z-score and Postgres
+ * raises 2201E (cannot take logarithm of zero), failing the whole ingest.
+ */
+export const count = (v: unknown): number | undefined => {
+  const n = num(v);
+  return n === undefined || n < 0 ? undefined : n;
+};

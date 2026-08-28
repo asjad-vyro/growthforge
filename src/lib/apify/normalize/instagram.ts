@@ -1,5 +1,5 @@
 import type { Platform } from "@/lib/apify/actors";
-import { type NormalizedPost, num, str, when } from "./types";
+import { type NormalizedPost, num, count, str, when } from "./types";
 
 // apify/instagram-hashtag-scraper item (posts + reels modes)
 export function normalizeInstagram(
@@ -26,10 +26,10 @@ export function normalizeInstagram(
     text: caption,
     media,
     metrics: {
-      likes: num(item.likesCount),
-      comments: num(item.commentsCount),
-      shares: num(item.sharesCount),
-      views: num(item.videoPlayCount) ?? num(item.videoViewCount),
+      likes: count(item.likesCount),
+      comments: count(item.commentsCount),
+      shares: count(item.sharesCount),
+      views: count(item.videoPlayCount) ?? count(item.videoViewCount),
     },
     hashtags: Array.isArray(item.hashtags)
       ? (item.hashtags as string[]).filter((h) => typeof h === "string")
