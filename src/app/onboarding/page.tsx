@@ -393,6 +393,7 @@ function Wizard() {
             alt="brain.market handset"
             width={190}
             height={300}
+            unoptimized
             className="h-auto w-[140px]"
           />
           <div className="font-instrument text-[clamp(38px,5vw,56px)] leading-[0.9] tracking-[-0.03em] text-[#1a1a1a]">
@@ -856,6 +857,7 @@ function FirstAd({
             alt="brain.market handset"
             width={190}
             height={300}
+            unoptimized
             className="h-auto w-[116px] self-end"
           />
         </div>
