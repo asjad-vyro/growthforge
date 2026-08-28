@@ -109,7 +109,7 @@ function Hero({ urlRef }: { urlRef: React.RefObject<HTMLInputElement | null> }) 
 
   // The wizard reads ?url= and kicks off the real extraction on mount.
   function start() {
-    const raw = website.trim().replace(/^https?:\\//, "").replace(/\\/+$/, "");
+    const raw = website.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
     router.push(raw ? `/onboarding?url=${encodeURIComponent(raw)}` : "/onboarding");
   }
 

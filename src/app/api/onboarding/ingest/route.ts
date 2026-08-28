@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const { workspace } = await requireWorkspace();
     const { url } = (await request.json()) as { url?: string };
-    if (!url || !/^https?:\\//.test(url)) {
+    if (!url || !/^https?:\/\//.test(url)) {
       return NextResponse.json({ error: "valid url required" }, { status: 400 });
     }
     const prefill = await ingestLandingPage(url, workspace.id);

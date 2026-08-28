@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     "Drop in your product and brand kit. GrowthForge reads what's working in your market and generates carousels, reels, LinkedIn posts and tweets that sound like you.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/>") {
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"

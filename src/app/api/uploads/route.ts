@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const { workspace } = await requireWorkspace();
     const { filename } = (await request.json()) as { filename?: string };
-    const safe = (filename ?? "file").replace(/[^\\w.\-]/g, "_").slice(0, 80);
+    const safe = (filename ?? "file").replace(/[^\w.\-]/g, "_").slice(0, 80);
     const path = `${workspace.id}/uploads/${crypto.randomUUID()}-${safe}`;
 
     const supabase = createAdminClient();
