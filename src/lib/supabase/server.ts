@@ -32,7 +32,10 @@ export async function createClient() {
 const DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export async function requireUser(): Promise<{ id: string }> {
-  if (process.env.DEV_SKIP_AUTH === "true") return { id: DEV_USER_ID };
+  // DEV_USER_ID lets the local bypass act as an existing account (to inspect a
+  // real workspace's data in the UI) instead of the fixed no-op user. Only
+  // honoured while DEV_SKIP_AUTH is on, so it is inert everywhere else.
+  if (process.env.DEV_SKIP_AUTH === "true") return { id: process.env.DEV_USER_ID || DEV_USER_ID };
   const supabase = await createClient();
   const {
     data: { user },
