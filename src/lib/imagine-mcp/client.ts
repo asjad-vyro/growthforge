@@ -127,18 +127,26 @@ function requireEnv(name: string): string {
  * cached session 401s with a now-stale grant). One reset+retry re-reads the fresh
  * tokens A persisted to app_secrets.
  */
+// The server's sync fetch_status blocks ~90s and 2K image geners run long —
+// the SDK's default 60s request timeout is far too short for either.
+const REQUEST_TIMEOUT_MS = 240_000;
+
 async function callToolWithRetry(
   name: string,
   args: Record<string, unknown>,
 ): Promise<Awaited<ReturnType<Client["callTool"]>>> {
   try {
     const client = await getClient();
-    return await client.callTool({ name, arguments: args });
+    return await client.callTool({ name, arguments: args }, undefined, {
+      timeout: REQUEST_TIMEOUT_MS,
+    });
   } catch (err) {
     if (!(err instanceof UnauthorizedError)) throw err;
     clientPromise = null;
     const client = await getClient();
-    return await client.callTool({ name, arguments: args });
+    return await client.callTool({ name, arguments: args }, undefined, {
+      timeout: REQUEST_TIMEOUT_MS,
+    });
   }
 }
 
@@ -183,7 +191,14 @@ async function callGenerate(tool: "generate_image" | "generate_video", args: Rec
 
 async function pollUntilTerminal(id: string, orgId: string): Promise<string> {
   for (;;) {
-    const result = await callToolWithRetry("fetch_status", { id, sync: true, org_id: orgId });
+    let result: Awaited<ReturnType<Client["callTool"]>>;
+    try {
+      result = await callToolWithRetry("fetch_status", { id, sync: true, org_id: orgId });
+    } catch (err) {
+      // A timed-out poll is not a failed generation — just ask again.
+      if (err instanceof Error && /-32001|timed?\s?out/i.test(err.message)) continue;
+      throw err;
+    }
     const data = result.structuredContent as AssetGenerationData | undefined;
     const asset = data?.assets?.[0];
     if (asset?.status === "complete") {
