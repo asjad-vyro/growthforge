@@ -16,6 +16,9 @@ export type CanvasAsset = {
   createdAt: string;
   headline?: string;
   body?: string;
+  /** Full text variants (each variant's tweets joined) for the expanded view. */
+  texts?: string[];
+  error?: string | null;
   meta?: string;
   files: CanvasFile[];
 };
@@ -136,6 +139,7 @@ export function CanvasBoard({
   const router = useRouter();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [compose, setCompose] = useState<string | null>(null);
+  const [preview, setPreview] = useState<CanvasAsset | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -399,7 +403,12 @@ export function CanvasBoard({
                 className="grid auto-cols-[190px] grid-flow-col gap-3 overflow-x-auto pb-1"
               >
                 {cards.map((a) => (
-                  <AssetCardTile key={a.id} asset={a} onRegenerate={() => regenerate(a.id)} />
+                  <AssetCardTile
+                    key={a.id}
+                    asset={a}
+                    onRegenerate={() => regenerate(a.id)}
+                    onExpand={() => setPreview(a)}
+                  />
                 ))}
                 <NewTile
                   label={cards.length ? "New variation" : `Create for ${ch.name}`}
@@ -419,13 +428,32 @@ export function CanvasBoard({
           onGenerate={startGenerating}
         />
       )}
+
+      {preview && (
+        <PreviewModal
+          asset={preview}
+          onClose={() => setPreview(null)}
+          onRegenerate={() => {
+            setPreview(null);
+            regenerate(preview.id);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-function AssetCardTile({ asset, onRegenerate }: { asset: CanvasAsset; onRegenerate: () => void }) {
+function AssetCardTile({
+  asset,
+  onRegenerate,
+  onExpand,
+}: {
+  asset: CanvasAsset;
+  onRegenerate: () => void;
+  onExpand: () => void;
+}) {
   const [hover, setHover] = useState(false);
   const media = asset.files.find(
     (f) => f.signedUrl && (f.mime.startsWith("image/") || f.mime.startsWith("video/")),
@@ -438,6 +466,7 @@ function AssetCardTile({ asset, onRegenerate }: { asset: CanvasAsset; onRegenera
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={onExpand}
       className="relative h-[208px] cursor-pointer overflow-hidden rounded-[14px] bg-white transition-shadow"
       style={{
         border: `1px solid ${hover ? "rgba(8,113,231,0.45)" : "rgba(0,0,0,0.08)"}`,
@@ -446,7 +475,10 @@ function AssetCardTile({ asset, onRegenerate }: { asset: CanvasAsset; onRegenera
     >
       {hover && (
         <span
-          onClick={onRegenerate}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRegenerate();
+          }}
           title="Regenerate"
           className="absolute right-2 top-2 z-[3] flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-lg"
           style={{
@@ -681,6 +713,147 @@ function ComposeModal({
           <GhostButton onClick={onClose}>Cancel</GhostButton>
           <GlintButton onClick={onGenerate} disabled={busy} radius="10px" padding="13px 24px" fontSize={13.5}>
             {busy ? "Starting…" : "Start generating"}
+          </GlintButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* PreviewModal — click a card to see the full asset: all tweet        */
+/* variants with copy, full-size media, downloads, and error detail.   */
+/* ------------------------------------------------------------------ */
+
+function PreviewModal({
+  asset,
+  onClose,
+  onRegenerate,
+}: {
+  asset: CanvasAsset;
+  onClose: () => void;
+  onRegenerate: () => void;
+}) {
+  const [copied, setCopied] = useState<number | null>(null);
+  const isText = TEXT_TYPES.has(asset.type);
+  const texts = asset.texts?.length ? asset.texts : asset.body ? [asset.body] : [];
+  const media = asset.files.filter(
+    (f) => f.signedUrl && (f.mime.startsWith("image/") || f.mime.startsWith("video/")),
+  );
+  const pending = ["queued", "generating", "rendering"].includes(asset.status);
+
+  function copy(text: string, i: number) {
+    void navigator.clipboard.writeText(text);
+    setCopied(i);
+    setTimeout(() => setCopied(null), 1400);
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[60] flex items-center justify-center px-5 py-8"
+      style={{ background: "rgba(26,26,26,0.45)", backdropFilter: "blur(4px)" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[20px] bg-white"
+        style={{ border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 24px 60px rgba(26,26,26,0.25)" }}
+      >
+        <div className="flex items-center justify-between gap-3 px-6 pb-3 pt-5">
+          <div className="flex items-center gap-2.5">
+            <span className="font-instrument text-[20px] tracking-[-0.01em] text-[#1a1a1a]">
+              {asset.headline ?? kindLabel(asset.type)}
+            </span>
+            <span className="rounded-full bg-[#0871E7]/10 px-2.5 py-[3px] text-[10.5px] text-[#0871E7]">
+              {kindLabel(asset.type)}
+            </span>
+            <span
+              className="rounded-full px-2.5 py-[3px] text-[10.5px]"
+              style={{
+                background: asset.status === "ready" ? "rgba(22,163,74,0.10)" : asset.status === "failed" ? "rgba(220,38,38,0.10)" : "rgba(26,26,26,0.06)",
+                color: asset.status === "ready" ? "#16A34A" : asset.status === "failed" ? "#DC2626" : "rgba(26,26,26,0.55)",
+              }}
+            >
+              {pending ? "generating…" : asset.status}
+            </span>
+          </div>
+          <span
+            onClick={onClose}
+            className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-full text-[15px] text-[#1a1a1a]/55 hover:bg-[#1a1a1a]/5"
+          >
+            ✕
+          </span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 pb-5">
+          {asset.error && (
+            <div className="mb-4 rounded-xl border border-[#DC2626]/25 bg-[#DC2626]/5 px-4 py-3 text-[12.5px] leading-[1.5] text-[#1a1a1a]/75">
+              {asset.error}
+            </div>
+          )}
+
+          {isText &&
+            (texts.length ? (
+              <div className="flex flex-col gap-3">
+                {texts.map((t, i) => (
+                  <div
+                    key={i}
+                    className="rounded-[14px] px-4 py-3.5"
+                    style={{ background: "var(--bm-page)", border: "1px solid rgba(0,0,0,0.07)" }}
+                  >
+                    <p className="whitespace-pre-line text-[14px] leading-[1.6] text-[#1a1a1a]/90">{t}</p>
+                    <div className="mt-2.5 flex items-center justify-between">
+                      <span className="text-[10.5px] text-[#1a1a1a]/40">{t.length} characters</span>
+                      <GhostButton tone="blue" onClick={() => copy(t, i)} className="!px-3 !py-1.5 !text-[11.5px]">
+                        {copied === i ? "Copied ✓" : "Copy"}
+                      </GhostButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-10 text-center text-[13px] text-[#1a1a1a]/45">
+                {pending ? "Still generating — this updates as soon as it lands." : "No content."}
+              </p>
+            ))}
+
+          {!isText &&
+            (media.length ? (
+              <div className="flex flex-col gap-3">
+                {media.map((f, i) =>
+                  f.mime.startsWith("video/") ? (
+                    <video key={i} src={f.signedUrl} controls autoPlay loop playsInline className="w-full rounded-[14px]" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={f.signedUrl} alt={f.label ?? ""} className="w-full rounded-[14px]" />
+                  ),
+                )}
+              </div>
+            ) : (
+              <p className="py-10 text-center text-[13px] text-[#1a1a1a]/45">
+                {pending ? "Still generating — this updates as soon as it lands." : asset.status === "failed" ? "Generation failed." : "No preview available."}
+              </p>
+            ))}
+        </div>
+
+        <div
+          className="flex items-center justify-between gap-3 px-6 py-4"
+          style={{ borderTop: "1px solid rgba(0,0,0,0.07)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {asset.files.map((f, i) => (
+              <a
+                key={i}
+                href={`/api/assets/${asset.id}/download?path=${encodeURIComponent(f.path)}`}
+                className="rounded-full px-3 py-1.5 text-[11.5px] text-[#1a1a1a]/70 hover:text-[#1a1a1a]"
+                style={{ border: "1px solid rgba(0,0,0,0.10)", background: "rgba(255,255,255,0.9)" }}
+              >
+                ⬇ {f.label ?? f.path.split("/").pop()}
+              </a>
+            ))}
+          </div>
+          <GlintButton onClick={onRegenerate} radius="10px" padding="11px 20px" fontSize={12.5}>
+            Regenerate
           </GlintButton>
         </div>
       </div>

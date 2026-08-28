@@ -22,8 +22,19 @@ function describe(type: string, content: Record<string, unknown> | null) {
 
   if (type === "tweet" || type === "thread") {
     const body = firstVariant ?? (typeof c.text === "string" ? c.text : undefined);
+    // Full variant texts for the expanded preview (threads join their tweets).
+    const texts = (variants ?? [])
+      .map((v) =>
+        typeof v === "string"
+          ? v
+          : Array.isArray((v as { tweets?: unknown[] })?.tweets)
+            ? ((v as { tweets: unknown[] }).tweets.filter((t) => typeof t === "string") as string[]).join("\n\n")
+            : "",
+      )
+      .filter(Boolean);
     return {
       body,
+      texts,
       meta: body ? `${body.length} ch` : undefined,
     };
   }
