@@ -90,14 +90,18 @@ export async function failJob(job: JobRow, err: unknown): Promise<void> {
   }
 }
 
-/** Requeue jobs whose worker died mid-run (claimed >10 min ago, still 'running'). */
+/**
+ * Requeue jobs whose worker died mid-run. Vercel hard-kills functions at 300s,
+ * so any claim older than 6 minutes is certainly dead — reclaim it. Generation
+ * handlers checkpoint their progress, so reclaimed jobs resume, not restart.
+ */
 export async function reclaimStuckJobs(): Promise<void> {
   await db.execute(sql`
     UPDATE jobs SET
       status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
       claimed_at = NULL,
       error = coalesce(error, '') || ' [reclaimed by watchdog]'
-    WHERE status = 'running' AND claimed_at < now() - interval '10 minutes'
+    WHERE status = 'running' AND claimed_at < now() - interval '6 minutes'
   `);
 }
 

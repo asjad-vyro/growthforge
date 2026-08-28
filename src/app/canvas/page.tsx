@@ -11,7 +11,14 @@ export const dynamic = "force-dynamic";
 function describe(type: string, content: Record<string, unknown> | null) {
   const c = (content ?? {}) as Record<string, unknown>;
   const variants = Array.isArray(c.variants) ? (c.variants as unknown[]) : null;
-  const firstVariant = typeof variants?.[0] === "string" ? (variants[0] as string) : undefined;
+  // Tweet content is variants: [{ kind: 'tweet'|'thread', tweets: string[] }]
+  const first = variants?.[0] as { tweets?: unknown[] } | string | undefined;
+  const firstVariant =
+    typeof first === "string"
+      ? first
+      : typeof first?.tweets?.[0] === "string"
+        ? (first.tweets[0] as string)
+        : undefined;
 
   if (type === "tweet" || type === "thread") {
     const body = firstVariant ?? (typeof c.text === "string" ? c.text : undefined);

@@ -139,25 +139,56 @@ export function CanvasBoard({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Pan + zoom
+  // Pan + zoom — a drag started anywhere on the canvas pans it; a pointer that
+  // moves less than the threshold is treated as a click on whatever is under it.
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [panning, setPanning] = useState(false);
-  const dragging = useRef<{ x: number; y: number } | null>(null);
+  const dragging = useRef<{
+    startX: number;
+    startY: number;
+    panX: number;
+    panY: number;
+    moved: boolean;
+  } | null>(null);
+  const justPanned = useRef(false);
 
   const panStart = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest("[data-no-pan]")) return;
-    dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-    setPanning(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragging.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      panX: pan.x,
+      panY: pan.y,
+      moved: false,
+    };
   };
   const panMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    setPan({ x: e.clientX - dragging.current.x, y: e.clientY - dragging.current.y });
+    const d = dragging.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved) {
+      if (Math.hypot(dx, dy) < 4) return;
+      d.moved = true;
+      justPanned.current = true;
+      setPanning(true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+    setPan({ x: d.panX + dx, y: d.panY + dy });
   };
   const panEnd = () => {
     dragging.current = null;
     setPanning(false);
+  };
+  // The click that follows a drag's pointerup must not activate the card or
+  // button the drag happened to start on.
+  const suppressClickAfterPan = (e: React.MouseEvent) => {
+    if (!justPanned.current) return;
+    justPanned.current = false;
+    e.preventDefault();
+    e.stopPropagation();
   };
   const onWheel = (e: React.WheelEvent) => {
     if (!e.ctrlKey && !e.metaKey) return;
@@ -282,8 +313,9 @@ export function CanvasBoard({
         onPointerMove={panMove}
         onPointerUp={panEnd}
         onPointerCancel={panEnd}
+        onClickCapture={suppressClickAfterPan}
         onWheel={onWheel}
-        className="fixed inset-0 overflow-hidden"
+        className="fixed inset-0 select-none overflow-hidden"
         style={{
           cursor: panning ? "grabbing" : "grab",
           backgroundImage: "radial-gradient(rgba(26,26,26,0.10) 1px, transparent 1px)",
@@ -304,7 +336,7 @@ export function CanvasBoard({
             <span className="text-[13px] text-[#1a1a1a]/50">
               {brand} · {total} asset{total === 1 ? "" : "s"}
             </span>
-            <div data-no-pan className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               {FILTERS.map((f) => {
                 const on = filter === f;
                 return (
@@ -363,7 +395,6 @@ export function CanvasBoard({
               </div>
 
               <div
-                data-no-pan
                 // Fixed track width so a row holding a single tile doesn't stretch it.
                 className="grid auto-cols-[190px] grid-flow-col gap-3 overflow-x-auto pb-1"
               >
@@ -453,7 +484,7 @@ function AssetCardTile({ asset, onRegenerate }: { asset: CanvasAsset; onRegenera
                 <video src={media.signedUrl} muted loop playsInline className="h-full w-full rounded-[9px] object-cover" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={media.signedUrl} alt={asset.headline ?? "asset"} className="h-full w-full rounded-[9px] object-cover" />
+                <img src={media.signedUrl} alt={asset.headline ?? "asset"} draggable={false} className="h-full w-full rounded-[9px] object-cover" />
               )
             ) : (
               <div

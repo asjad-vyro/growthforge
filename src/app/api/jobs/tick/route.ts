@@ -19,7 +19,10 @@ async function tick(request: NextRequest): Promise<NextResponse> {
   await reclaimStuckJobs();
 
   while (Date.now() < deadline) {
-    const jobs = await claimJobs(5);
+    // Claim small: media-generation jobs can each eat minutes, and everything
+    // claimed by an invocation that dies at the duration limit sits hostage
+    // until the watchdog reclaims it.
+    const jobs = await claimJobs(2);
     if (jobs.length === 0) break;
 
     for (const job of jobs) {
