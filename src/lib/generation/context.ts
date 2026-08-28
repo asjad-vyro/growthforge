@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db/client";
 import type { TrendReport } from "@/lib/llm/schemas/trends";
 import { getBrandSnapshot, brandPromptBlock, type BrandSnapshot } from "./brand";
@@ -81,4 +81,23 @@ export async function loadGenerationContext(assetId: string): Promise<Generation
     .join("\n\n");
 
   return { asset, project, brand, report, angle, exemplarTexts: exemplars.map((e) => e.text ?? ""), promptPreamble };
+}
+
+/**
+ * Merge a checkpoint into the asset's content jsonb. Generation jobs can be
+ * killed at the function duration limit; checkpoints let the retry resume
+ * (skip finished slides/aspects, re-poll an already-submitted video) instead
+ * of restarting — and re-spending — from zero.
+ */
+export async function patchAssetContent(
+  assetId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  await db
+    .update(schema.generatedAssets)
+    .set({
+      content: sql`coalesce(content, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.generatedAssets.id, assetId));
 }

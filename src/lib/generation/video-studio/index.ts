@@ -1,7 +1,8 @@
 import type { AssetFile } from "@/lib/db/schema";
-import { generateVideo } from "@/lib/imagine-mcp/client";
+import { generateVideoSubmit, pollGeneration } from "@/lib/imagine-mcp/client";
 import { uploadBuffer, BUCKETS } from "@/lib/storage";
 import type { GenerationContext } from "../context";
+import { patchAssetContent } from "../context";
 import { TEMPLATE_KEYS } from "./templates";
 import { buildVideoPrompt } from "./prompt";
 
@@ -21,6 +22,10 @@ function details(ctx: GenerationContext): string {
  * which — like Forge's own Seedance choice — generates synchronised speech audio natively; no
  * separate TTS/transcription/compose chain is needed, unlike the old fal-based reel pipeline).
  *
+ * Resume-safe: the submitted imagine asset id (and the locked template) is checkpointed into
+ * asset.content, so a retry after a function-duration kill re-polls the SAME generation instead
+ * of submitting — and paying for — a new one.
+ *
  * Caveat: Forge's templates are built to reproduce a REAL product screenshot on the laptop-reveal
  * shot (`PRODUCT UI CONSISTENCY — TOP PRIORITY`). GrowthForge has no product-screenshot library
  * (unlike Forge's feature packs), so no reference image is attached — the model invents a plausible
@@ -28,15 +33,24 @@ function details(ctx: GenerationContext): string {
  * generic than Forge's own screenshot-grounded output.
  */
 export async function renderReelVideo(ctx: GenerationContext): Promise<{ file: AssetFile; template: string }> {
-  const templateKey = TEMPLATE_KEYS[Math.floor(Math.random() * TEMPLATE_KEYS.length)];
-  const prompt = buildVideoPrompt({
-    templateKey,
-    details: details(ctx),
-    brand: ctx.project.name,
-    audioOn: true,
-  });
+  const prior = (ctx.asset.content ?? {}) as { imagineAssetId?: string; template?: string };
 
-  const videoUrl = await generateVideo({ prompt, aspectRatio: "9:16", model: "seedance-2.0" });
+  const templateKey =
+    prior.template ?? TEMPLATE_KEYS[Math.floor(Math.random() * TEMPLATE_KEYS.length)];
+
+  let imagineAssetId = prior.imagineAssetId;
+  if (!imagineAssetId) {
+    const prompt = buildVideoPrompt({
+      templateKey,
+      details: details(ctx),
+      brand: ctx.project.name,
+      audioOn: true,
+    });
+    imagineAssetId = await generateVideoSubmit({ prompt, aspectRatio: "9:16", model: "seedance-2.0" });
+    await patchAssetContent(ctx.asset.id, { imagineAssetId, template: templateKey });
+  }
+
+  const videoUrl = await pollGeneration(imagineAssetId);
 
   const res = await fetch(videoUrl, { signal: AbortSignal.timeout(180_000) });
   const buf = Buffer.from(await res.arrayBuffer());

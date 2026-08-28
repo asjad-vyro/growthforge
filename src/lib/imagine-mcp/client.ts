@@ -151,7 +151,8 @@ function logShapeMismatch(tool: string, result: unknown): void {
   console.error(`imagine-mcp ${tool}: response shape didn't match the pinned contract:`, JSON.stringify(result));
 }
 
-async function callGenerate(tool: "generate_image" | "generate_video", args: Record<string, unknown>): Promise<string> {
+/** Start a generation and return the imagine asset id WITHOUT waiting for completion. */
+async function submitGenerate(tool: "generate_image" | "generate_video", args: Record<string, unknown>): Promise<string> {
   const orgId = requireEnv("IMAGINE_MCP_ORG_ID");
   const folderId = process.env.IMAGINE_MCP_FOLDER_ID;
 
@@ -167,8 +168,17 @@ async function callGenerate(tool: "generate_image" | "generate_video", args: Rec
     throw new Error(`imagine-mcp ${tool}: ${textOf(result) ?? "no asset id returned"}`);
   }
   if (asset.status === "error") throw new Error(`imagine-mcp ${tool}: ${asset.errorMessage ?? "generation failed"}`);
+  return asset.id;
+}
 
-  return pollUntilTerminal(asset.id, orgId);
+/** Resume-safe wait: poll an already-submitted generation until it completes. */
+export async function pollGeneration(imagineAssetId: string): Promise<string> {
+  return pollUntilTerminal(imagineAssetId, requireEnv("IMAGINE_MCP_ORG_ID"));
+}
+
+async function callGenerate(tool: "generate_image" | "generate_video", args: Record<string, unknown>): Promise<string> {
+  const id = await submitGenerate(tool, args);
+  return pollGeneration(id);
 }
 
 async function pollUntilTerminal(id: string, orgId: string): Promise<string> {
@@ -230,7 +240,20 @@ export async function generateVideo(input: {
   resolution?: string;
   imageUrl?: string[];
 }): Promise<string> {
-  return callGenerate("generate_video", {
+  const id = await generateVideoSubmit(input);
+  return pollGeneration(id);
+}
+
+/** Submit-only variant so callers can checkpoint the id and resume polling after a crash. */
+export async function generateVideoSubmit(input: {
+  prompt: string;
+  aspectRatio?: string;
+  model?: string;
+  duration?: string;
+  resolution?: string;
+  imageUrl?: string[];
+}): Promise<string> {
+  return submitGenerate("generate_video", {
     prompt: input.prompt,
     aspect_ratio: input.aspectRatio ?? null,
     model: input.model ?? null,
