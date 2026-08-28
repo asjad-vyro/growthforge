@@ -54,11 +54,13 @@ export async function recomputeEngagementScores(projectId: string): Promise<void
   await db.execute(sql`
     WITH scored AS (
       SELECT id,
+        -- greatest(): platforms report -1 for hidden counts (e.g. Instagram
+        -- hidden likes); ln() of a non-positive number aborts the whole update
         ln(1
-          + coalesce((metrics->>'likes')::numeric, 0)
-          + 3 * coalesce((metrics->>'comments')::numeric, 0)
-          + 2 * coalesce((metrics->>'shares')::numeric, 0)
-          + coalesce((metrics->>'views')::numeric, 0) / 50
+          + greatest(coalesce((metrics->>'likes')::numeric, 0), 0)
+          + 3 * greatest(coalesce((metrics->>'comments')::numeric, 0), 0)
+          + 2 * greatest(coalesce((metrics->>'shares')::numeric, 0), 0)
+          + greatest(coalesce((metrics->>'views')::numeric, 0), 0) / 50
         ) AS raw_score,
         platform
       FROM scraped_posts WHERE project_id = ${projectId}
